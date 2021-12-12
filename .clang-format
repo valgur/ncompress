@@ -9,6 +9,7 @@ AlwaysBreakAfterReturnType: TopLevelDefinitions
 PointerAlignment: Right
 IndentPPDirectives: AfterHash
 AlignConsecutiveMacros: Consecutive
+FixNamespaceComments: true
 
 # BreakBeforeBraces: Allman
 BreakBeforeBraces: Custom

@@ -18,6 +18,9 @@
 #include <istream>
 #include <ostream>
 
+namespace ncompress
+{
+
 /**
  * Applies LZW compression to the input.
  *
@@ -32,3 +35,5 @@ void compress(std::istream &in, std::ostream &out);
  * @throws std::invalid_argument on invalid or corrupted input data
  */
 void decompress(std::istream &in, std::ostream &out);
+
+} // namespace ncompress

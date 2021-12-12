@@ -17,11 +17,41 @@ else()
     "$<$<CONFIG:RelWithDebInfo>:-ggdb3;-O3>"
     "$<$<CONFIG:Release>:-O3>"
     -Wall
-    -Wno-sign-compare
     -Wextra
     -Wpedantic
   )
 endif()
 
-add_library(${PROJECT_NAME} STATIC src/ncompress.cpp)
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+set(BUILD_PYTHON TRUE CACHE BOOL "Whether to build a Python module or a general shared library")
+
+if(BUILD_PYTHON)
+
+  find_package(pybind11 QUIET)
+  if(NOT pybind11_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(pybind11
+      GIT_REPOSITORY https://github.com/pybind/pybind11.git
+      GIT_TAG stable
+      GIT_SHALLOW ON
+      )
+    FetchContent_MakeAvailable(pybind11)
+  endif()
+
+  if(DEFINED VERSION_INFO)
+    add_compile_definitions(VERSION_INFO=${VERSION_INFO})
+  endif()
+
+  pybind11_add_module(${PROJECT_NAME} src/ncompress.cpp src/python.cpp)
+  target_include_directories(${PROJECT_NAME} PUBLIC include)
+
+else()
+
+  add_library(${PROJECT_NAME} SHARED src/ncompress.cpp)
+  target_include_directories(${PROJECT_NAME} PUBLIC include)
+
+  include(GNUInstallDirs)
+  install(TARGETS ${PROJECT_NAME}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+endif()

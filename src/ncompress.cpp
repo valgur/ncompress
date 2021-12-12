@@ -104,6 +104,9 @@ typedef unsigned char char_type;
 #define clear_htab()         memset(htab, -1, sizeof(htab))
 #define clear_tab_prefixof() memset(codetab, 0, 256);
 
+namespace ncompress
+{
+
 static const int primetab[256] = /* Special secudary hash table.		*/
     {
       1013, -1061, 1109, -1181, 1231, -1291, 1361, -1429,
@@ -628,3 +631,5 @@ write_error()
 {
   throw std::ios_base::failure("writing to output stream failed");
 }
+
+} // namespace ncompress
