@@ -13,9 +13,10 @@
  *   Mike Frysinger      (vapier@gmail.com)
  */
 
+#include "ncompress.h"
+
 #include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <istream>
 #include <ostream>
 
@@ -139,13 +140,11 @@ static const int primetab[256] = /* Special secudary hash table.		*/
       18919, -19031, 19121, -19211, 19273, -19381, 19429, -19477
     };
 
-void compress(std::istream &in, std::ostream &out);
-void decompress(std::istream &in, std::ostream &out);
 void read_error();
 void write_error();
 
 /*
- * compress fdin to fdout
+ * Compress in stream to out stream.
  *
  * Algorithm:  use open addressing double hashing (no chaining) on the
  * prefix code / next character combination.  We do a variant of Knuth's
@@ -383,12 +382,11 @@ compress(std::istream &in, std::ostream &out)
 }
 
 /*
- * Decompress stdin to stdout.  This routine adapts to the codes in the
+ * Decompress input stream to output stream. This routine adapts to the codes in the
  * file building the "string" table on-the-fly; requiring no table to
  * be stored in the compressed file.  The tables used herein are shared
  * with those of the compress() routine.  See the definitions above.
  */
-
 void
 decompress(std::istream &in, std::ostream &out)
 {
@@ -629,11 +627,4 @@ void
 write_error()
 {
   throw std::ios_base::failure("writing to output stream failed");
-}
-
-int
-main(int, char *[])
-{
-  compress(std::cin, std::cout);
-  // decompress(std::cin, std::cout);
 }
