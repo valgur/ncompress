@@ -1,6 +1,6 @@
 # Based on https://github.com/valgur/clang-guess-format
 BasedOnStyle: WebKit
-UseTab: Always
+UseTab: Never
 IndentWidth: 2
 TabWidth: 2
 ColumnLimit: 0
