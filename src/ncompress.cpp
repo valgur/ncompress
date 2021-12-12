@@ -13,11 +13,11 @@
  *   Mike Frysinger      (vapier@gmail.com)
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <unistd.h>
+#include <cstdio>
+#include <cstring>
+#include <iostream>
+#include <istream>
+#include <ostream>
 
 #ifndef IBUFSIZ
 #  define IBUFSIZ BUFSIZ /* Default input buffer size							*/
@@ -97,21 +97,6 @@ typedef unsigned char char_type;
       maxcode = MAXCODE(n_bits) - 1;                                                 \
   }
 
-int maxbits = BITS; /* user settable max # bits/code 				*/
-int exit_code = -1; /* Exitcode of compress (-1 no file compressed)	*/
-
-char_type inbuf[IBUFSIZ + 64]; /* Input buffer									*/
-char_type outbuf[OBUFSIZ + 2048]; /* Output buffer								*/
-
-char *ifname; /* Input filename								*/
-char *ofname = NULL; /* Output filename								*/
-
-long bytes_in; /* Total number of byte from input				*/
-long bytes_out; /* Total number of byte to output				*/
-
-count_int htab[HSIZE];
-unsigned short codetab[HSIZE];
-
 #define tab_prefixof(i)      codetab[i]
 #define tab_suffixof(i)      ((char_type *)(htab))[i]
 #define de_stack             ((char_type *)&(htab[HSIZE - 1]))
@@ -154,11 +139,10 @@ static const int primetab[256] = /* Special secudary hash table.		*/
       18919, -19031, 19121, -19211, 19273, -19381, 19429, -19477
     };
 
-static void compress(int, int);
-static void decompress(int, int);
-static void read_error(void);
-static void write_error(void);
-static void abort_compress(void);
+void compress(std::istream &in, std::ostream &out);
+void decompress(std::istream &in, std::ostream &out);
+void read_error();
+void write_error();
 
 /*
  * compress fdin to fdout
@@ -176,7 +160,7 @@ static void abort_compress(void);
  * questions about this implementation to ames!jaw.
  */
 void
-compress(int fdin, int fdout)
+compress(std::istream &in, std::ostream &out)
 {
   long hp;
   int rpos;
@@ -188,12 +172,12 @@ compress(int fdin, int fdout)
   code_int free_ent;
   int boff;
   int n_bits;
-  int ratio;
-  long checkpoint;
+  int ratio = 0;
+  long checkpoint = CHECK_GAP;
   code_int extcode;
   union
   {
-    long code;
+    long code = 0;
     struct
     {
       char_type c;
@@ -201,23 +185,34 @@ compress(int fdin, int fdout)
     } e;
   } fcode;
 
-  ratio = 0;
-  checkpoint = CHECK_GAP;
+  int maxbits = BITS; /* user settable max # bits/code 				*/
+
+  char_type inbuf[IBUFSIZ + 64]; /* Input buffer									*/
+  char_type outbuf[OBUFSIZ + 2048]; /* Output buffer								*/
+
+  long bytes_in = 0; /* Total number of bytes from input				*/
+  long bytes_out = 0; /* Total number of bytes to output				*/
+
+  count_int htab[HSIZE];
+  unsigned short codetab[HSIZE];
+
   reset_n_bits_for_compressor(n_bits, stcode, free_ent, extcode, maxbits);
 
   memset(outbuf, 0, sizeof(outbuf));
-  bytes_out = 0;
-  bytes_in = 0;
   outbuf[0] = MAGIC_1;
   outbuf[1] = MAGIC_2;
   outbuf[2] = (char)(maxbits | BLOCK_MODE);
   boff = outbits = (3 << 3);
-  fcode.code = 0;
 
   clear_htab();
 
-  while ((rsize = read(fdin, inbuf, IBUFSIZ)) > 0)
+  while (in.good())
   {
+    in.read((char *)inbuf, IBUFSIZ);
+    rsize = in.gcount();
+    if (rsize <= 0)
+      break;
+
     if (bytes_in == 0)
     {
       fcode.e.ent = inbuf[0];
@@ -278,7 +273,8 @@ compress(int fdin, int fdout)
 
       if (outbits >= (OBUFSIZ << 3))
       {
-        if (write(fdout, outbuf, OBUFSIZ) != OBUFSIZ)
+        out.write((char *)outbuf, OBUFSIZ);
+        if (out.fail())
           write_error();
 
         outbits -= (OBUFSIZ << 3);
@@ -296,8 +292,8 @@ compress(int fdin, int fdout)
 
         if ((code_int)i > extcode - free_ent)
           i = (int)(extcode - free_ent);
-        if (i > ((sizeof(outbuf) - 32) * 8 - outbits) / n_bits)
-          i = ((sizeof(outbuf) - 32) * 8 - outbits) / n_bits;
+        if (i > (((int)sizeof(outbuf) - 32) * 8 - outbits) / n_bits)
+          i = (((int)sizeof(outbuf) - 32) * 8 - outbits) / n_bits;
 
         if (!stcode && (long)i > checkpoint - bytes_in)
           i = (int)(checkpoint - bytes_in);
@@ -373,18 +369,17 @@ compress(int fdin, int fdout)
     while (rlop < rsize);
   }
 
-  if (rsize < 0)
+  if (in.bad())
     read_error();
 
   if (bytes_in > 0)
     output(outbuf, outbits, fcode.e.ent, n_bits);
 
-  if (write(fdout, outbuf, (outbits + 7) >> 3) != (outbits + 7) >> 3)
+  out.write((char *)outbuf, (outbits + 7) >> 3);
+  if (out.fail())
     write_error();
 
   bytes_out += (outbits + 7) >> 3;
-
-  return;
 }
 
 /*
@@ -395,7 +390,7 @@ compress(int fdin, int fdout)
  */
 
 void
-decompress(int fdin, int fdout)
+decompress(std::istream &in, std::ostream &out)
 {
   char_type *stackp;
   code_int code;
@@ -405,7 +400,7 @@ decompress(int fdin, int fdout)
   int inbits;
   int posbits;
   int outpos;
-  int insize;
+  int insize = 0;
   int bitmask;
   code_int free_ent;
   code_int maxcode;
@@ -414,26 +409,30 @@ decompress(int fdin, int fdout)
   int rsize;
   int block_mode;
 
-  bytes_in = 0;
-  bytes_out = 0;
-  insize = 0;
+  int maxbits = BITS; /* user settable max # bits/code 				*/
 
-  while (insize < 3 && (rsize = read(fdin, inbuf + insize, IBUFSIZ)) > 0)
+  char_type inbuf[IBUFSIZ + 64]; /* Input buffer									*/
+  char_type outbuf[OBUFSIZ + 2048]; /* Output buffer								*/
+
+  long bytes_in = 0; /* Total number of bytes from input				*/
+
+  count_int htab[HSIZE];
+  unsigned short codetab[HSIZE];
+
+  while (insize < 3 && in.good())
+  {
+    in.read((char *)(inbuf + insize), IBUFSIZ);
+    rsize = in.gcount();
     insize += rsize;
+  }
 
   if (insize < 3 || inbuf[0] != MAGIC_1 || inbuf[1] != MAGIC_2)
   {
-    if (rsize < 0)
+    if (in.bad())
       read_error();
-
-    if (insize > 0)
-    {
-      fprintf(stderr, "%s: not in compressed format\n",
-          (ifname[0] != '\0' ? ifname : "stdin"));
-      exit_code = 1;
-    }
-
-    return;
+    if (insize == 0)
+      throw std::invalid_argument("input stream is empty");
+    throw std::invalid_argument("not in LZW-compressed format");
   }
 
   maxbits = inbuf[2] & BIT_MASK;
@@ -441,11 +440,8 @@ decompress(int fdin, int fdout)
 
   if (maxbits > BITS)
   {
-    fprintf(stderr,
-        "%s: compressed with %d bits, can only handle %d bits\n",
-        (*ifname != '\0' ? ifname : "stdin"), maxbits, BITS);
-    exit_code = 4;
-    return;
+    throw std::invalid_argument("compressed with " + std::to_string(maxbits) +
+        " bits, can only handle " + std::to_string(BITS) + " bits");
   }
 
   maxmaxcode = MAXCODE(maxbits);
@@ -483,11 +479,12 @@ decompress(int fdin, int fdout)
       posbits = 0;
     }
 
-    if (insize < sizeof(inbuf) - IBUFSIZ)
+    if (insize < (int)sizeof(inbuf) - IBUFSIZ)
     {
-      if ((rsize = read(fdin, inbuf + insize, IBUFSIZ)) < 0)
+      in.read((char *)(inbuf + insize), IBUFSIZ);
+      if (in.bad())
         read_error();
-
+      rsize = in.gcount();
       insize += rsize;
     }
 
@@ -515,9 +512,7 @@ decompress(int fdin, int fdout)
       {
         if (code >= 256)
         {
-          fprintf(stderr, "oldcode:-1 code:%i\n", (int)(code));
-          fprintf(stderr, "uncompress: corrupt input\n");
-          abort_compress();
+          throw std::invalid_argument("corrupt input - oldcode: -1, code: " + std::to_string((int)(code)));
         }
         outbuf[outpos++] = (char_type)(finchar = (int)(oldcode = code));
         continue;
@@ -546,10 +541,11 @@ decompress(int fdin, int fdout)
           if (p == inbuf)
             p++;
 
-          fprintf(stderr, "insize:%d posbits:%d inbuf:%02X %02X %02X %02X %02X (%d)\n", insize, posbits,
-              p[-1], p[0], p[1], p[2], p[3], (posbits & 07));
-          fprintf(stderr, "uncompress: corrupt input\n");
-          abort_compress();
+          char err[200];
+          snprintf(err, 200,
+              "corrupt input - insize: %d, posbits: %d, inbuf: %02X %02X %02X %02X %02X (%d)",
+              insize, posbits, p[-1], p[0], p[1], p[2], p[3], (posbits & 07));
+          throw std::invalid_argument(err);
         }
 
         *--stackp = (char_type)finchar;
@@ -584,7 +580,8 @@ decompress(int fdin, int fdout)
 
             if (outpos >= OBUFSIZ)
             {
-              if (write(fdout, outbuf, outpos) != outpos)
+              out.write((char *)outbuf, outpos);
+              if (out.fail())
                 write_error();
 
               outpos = 0;
@@ -614,35 +611,29 @@ decompress(int fdin, int fdout)
   }
   while (rsize > 0);
 
-  if (outpos > 0 && write(fdout, outbuf, outpos) != outpos)
-    write_error();
+  if (outpos > 0)
+  {
+    out.write((char *)outbuf, outpos);
+    if (out.fail())
+      write_error();
+  }
 }
 
 void
-read_error(void)
+read_error()
 {
-  fprintf(stderr, "\nread error on");
-  perror((ifname[0] != '\0') ? ifname : "stdin");
-  abort_compress();
+  throw std::ios_base::failure("reading from input stream failed");
 }
 
 void
-write_error(void)
+write_error()
 {
-  fprintf(stderr, "\nwrite error on");
-  perror(ofname ? ofname : "stdout");
-  abort_compress();
-}
-
-void
-abort_compress(void)
-{
-  exit(1);
+  throw std::ios_base::failure("writing to output stream failed");
 }
 
 int
-main(int argc, char *argv[])
+main(int, char *[])
 {
-  compress(0, 1);
-  decompress(0, 1);
+  compress(std::cin, std::cout);
+  // decompress(std::cin, std::cout);
 }
