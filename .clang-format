@@ -1,0 +1,32 @@
+# Based on https://github.com/valgur/clang-guess-format
+BasedOnStyle: WebKit
+UseTab: Always
+IndentWidth: 2
+TabWidth: 2
+ColumnLimit: 0
+BreakBeforeBinaryOperators: None
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+PointerAlignment: Right
+IndentPPDirectives: AfterHash
+AlignConsecutiveMacros: Consecutive
+
+# BreakBeforeBraces: Allman
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel:  true
+  AfterClass:      true
+  AfterControlStatement: Always
+  AfterEnum:       true
+  AfterFunction:   true
+  AfterNamespace:  true
+  AfterObjCDeclaration: true
+  AfterStruct:     true
+  AfterUnion:      true
+  AfterExternBlock: false
+  BeforeCatch:     true
+  BeforeElse:      true
+  BeforeWhile:     true
+  IndentBraces:    false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
