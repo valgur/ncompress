@@ -1,6 +1,7 @@
-// Based on https://github.com/CadQuery/OCP/blob/master/pystreambuf.h
-// which is based on https://gist.github.com/asford/544323a5da7dddad2c9174490eb5ed06
-// which is derived from http://cci.lbl.gov/cctbx_sources/boost_adaptbx/python_streambuf.h
+// Based on https://gist.github.com/asford/544323a5da7dddad2c9174490eb5ed06
+// and https://github.com/CadQuery/OCP/blob/master/pystreambuf.h
+// which derive from
+// https://github.com/cctbx/cctbx_project/blob/master/boost_adaptbx/python_streambuf.h
 //
 // *** License agreement ***
 //
@@ -51,9 +52,11 @@
 
 #include <pybind11/pybind11.h>
 
+#include <iostream>
 #include <istream>
 #include <ostream>
 #include <streambuf>
+#include <vector>
 
 namespace pystream
 {
@@ -61,43 +64,110 @@ namespace pystream
 namespace py = pybind11;
 
 /// A stream buffer getting data from and putting data into a Python file object
+/** The aims are as follow:
+
+    - Given a C++ function acting on a standard stream, e.g.
+
+      \code
+      void read_inputs(std::istream& input) {
+        ...
+        input >> something >> something_else;
+      }
+      \endcode
+
+      and given a piece of Python code which creates a file-like object,
+      to be able to pass this file object to that C++ function, e.g.
+
+      \code
+      import gzip
+      gzip_file_obj = gzip.GzipFile(...)
+      read_inputs(gzip_file_obj)
+      \endcode
+
+      and have the standard stream pull data from and put data into the Python
+      file object.
+
+    - When Python \c read_inputs() returns, the Python object is able to
+      continue reading or writing where the C++ code left off.
+
+    - Operations in C++ on mere files should be competitively fast compared
+      to the direct use of \c std::fstream.
+
+
+    \b Motivation
+
+      - the standard Python library offer of file-like objects (files,
+        compressed files and archives, network, ...) is far superior to the
+        offer of streams in the C++ standard library and Boost C++ libraries.
+
+      - i/o code involves a fair amount of text processing which is more
+        efficiently prototyped in Python but then one may need to rewrite
+        a time-critical part in C++, in as seamless a manner as possible.
+
+    \b Usage
+
+    This is 2-step:
+
+      - a trivial wrapper function
+
+        \code
+          using pystream::streambuf;
+          void read_inputs_wrapper(streambuf& input)
+          {
+            streambuf::istream is(input);
+            read_inputs(is);
+          }
+
+          def("read_inputs", read_inputs_wrapper);
+        \endcode
+
+        which has to be written every time one wants a Python binding for
+        such a C++ function.
+
+      - the Python side
+
+        \code
+          from pystream import streambuf
+          read_inputs(streambuf(python_file_obj=obj, buffer_size=1024))
+        \endcode
+
+        \c buffer_size is optional. See also: \c default_buffer_size
+
+  Note: references are to the C++ standard (the numbers between parentheses
+  at the end of references are margin markers).
+*/
 class streambuf : public std::basic_streambuf<char>
 {
   private:
-  typedef std::basic_streambuf<char> base_t;
+  using base_t = std::basic_streambuf<char>;
 
   public:
-  /* The syntax
-      using base_t::char_type;
-     would be nicer but Visual Studio C++ 8 chokes on it
-  */
-  typedef base_t::char_type char_type;
-  typedef base_t::int_type int_type;
-  typedef base_t::pos_type pos_type;
-  typedef base_t::off_type off_type;
-  typedef base_t::traits_type traits_type;
+  using char_type = base_t::char_type;
+  using int_type = base_t::int_type;
+  using pos_type = base_t::pos_type;
+  using off_type = base_t::off_type;
+  using traits_type = base_t::traits_type;
 
   /// The default size of the read and write buffer.
   /** They are respectively used to buffer data read from and data written to
       the Python file object. It can be modified from Python.
   */
-  static const std::size_t default_buffer_size = 1024;
+  static const size_t default_buffer_size = 1024;
 
   /// Construct from a Python file object
   /** if buffer_size is 0 the current default_buffer_size is used.
    */
   streambuf(
       py::object &python_file_obj,
-      std::size_t buffer_size_ = 0)
+      size_t buffer_size_ = 0)
       : py_read(getattr(python_file_obj, "read", py::none()))
       , py_write(getattr(python_file_obj, "write", py::none()))
       , py_seek(getattr(python_file_obj, "seek", py::none()))
       , py_tell(getattr(python_file_obj, "tell", py::none()))
       , buffer_size(buffer_size_ != 0 ? buffer_size_ : default_buffer_size)
-      , write_buffer(0)
       , pos_of_read_buffer_end_in_py_file(0)
       , pos_of_write_buffer_end_in_py_file(buffer_size)
-      , farthest_pptr(0)
+      , farthest_pptr(nullptr)
   {
     assert(buffer_size != 0);
     /* Some Python file objects (e.g. sys.stdout and sys.stdin)
@@ -121,16 +191,14 @@ class streambuf : public std::basic_streambuf<char>
 
     if (!py_write.is_none())
     {
-      // C-like string to make debugging easier
-      write_buffer = new char[buffer_size + 1];
-      write_buffer[buffer_size] = '\0';
-      setp(write_buffer, write_buffer + buffer_size); // 27.5.2.4.5 (5)
+      write_buffer.resize(buffer_size);
+      setp(write_buffer.data(), write_buffer.data() + buffer_size); // 27.5.2.4.5 (5)
       farthest_pptr = pptr();
     }
     else
     {
       // The first attempt at output will result in a call to overflow
-      setp(0, 0);
+      setp(nullptr, nullptr);
     }
 
     if (!py_tell.is_none())
@@ -139,13 +207,6 @@ class streambuf : public std::basic_streambuf<char>
       pos_of_read_buffer_end_in_py_file = py_pos;
       pos_of_write_buffer_end_in_py_file = py_pos;
     }
-  }
-
-  /// Mundane destructor freeing the allocated resources
-  virtual ~streambuf()
-  {
-    if (write_buffer)
-      delete[] write_buffer;
   }
 
   /// C.f. C++ standard section 27.5.2.4.3
@@ -176,12 +237,12 @@ class streambuf : public std::basic_streambuf<char>
     if (PYBIND11_BYTES_AS_STRING_AND_SIZE(read_buffer.ptr(),
             &read_buffer_data, &py_n_read) == -1)
     {
-      setg(0, 0, 0);
+      setg(nullptr, nullptr, nullptr);
       throw std::invalid_argument(
           "The method 'read' of the Python file object "
           "did not return a string.");
     }
-    off_type n_read = (off_type)py_n_read;
+    off_type n_read = py_n_read;
     pos_of_read_buffer_end_in_py_file += n_read;
     setg(read_buffer_data, read_buffer_data, read_buffer_data + n_read);
     // ^^^27.5.2.3.1 (4)
@@ -199,7 +260,7 @@ class streambuf : public std::basic_streambuf<char>
           "That Python file object has no 'write' attribute");
     }
     farthest_pptr = std::max(farthest_pptr, pptr());
-    off_type n_written = (off_type)(farthest_pptr - pbase());
+    off_type n_written = farthest_pptr - pbase();
     py::bytes chunk(pbase(), n_written);
     py_write(chunk);
     if (!traits_type::eq_int_type(c, traits_type::eof()))
@@ -215,8 +276,7 @@ class streambuf : public std::basic_streambuf<char>
       // ^^^ 27.5.2.4.5 (5)
       farthest_pptr = pptr();
     }
-    return traits_type::eq_int_type(
-               c, traits_type::eof())
+    return traits_type::eq_int_type(c, traits_type::eof())
         ? traits_type::not_eof(c)
         : c;
   }
@@ -330,7 +390,7 @@ class streambuf : public std::basic_streambuf<char>
   private:
   py::object py_read, py_write, py_seek, py_tell;
 
-  std::size_t buffer_size;
+  size_t buffer_size;
 
   /* This is actually a Python bytes object and the actual read buffer is
      its internal data, i.e. an array of characters.
@@ -340,7 +400,7 @@ class streambuf : public std::basic_streambuf<char>
   /* A mere array of char's allocated on the heap at construction time and
      de-allocated only at destruction time.
   */
-  char *write_buffer;
+  std::vector<char> write_buffer;
 
   off_type pos_of_read_buffer_end_in_py_file,
       pos_of_write_buffer_end_in_py_file;
@@ -454,7 +514,7 @@ struct streambuf_capsule
 
   streambuf_capsule(
       py::object &python_file_obj,
-      std::size_t buffer_size = 0)
+      size_t buffer_size = 0)
       : python_streambuf(python_file_obj, buffer_size)
   {
   }
@@ -464,7 +524,7 @@ struct ostream : private streambuf_capsule, streambuf::ostream
 {
   ostream(
       py::object &python_file_obj,
-      std::size_t buffer_size = 0)
+      size_t buffer_size = 0)
       : streambuf_capsule(python_file_obj, buffer_size)
       , streambuf::ostream(python_streambuf)
   {
@@ -483,7 +543,7 @@ struct istream : private streambuf_capsule, streambuf::istream
 {
   istream(
       py::object &python_file_obj,
-      std::size_t buffer_size = 0)
+      size_t buffer_size = 0)
       : streambuf_capsule(python_file_obj, buffer_size)
       , streambuf::istream(python_streambuf)
   {
