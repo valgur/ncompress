@@ -29,7 +29,7 @@ namespace ncompress
 void compress(std::istream &in, std::ostream &out);
 
 /**
- * Decompresses LZW-compressed input.
+ * Decompresses the LZW-compressed input.
  *
  * @throws std::ios_base::failure on stream errors
  * @throws std::invalid_argument on invalid or corrupted input data
