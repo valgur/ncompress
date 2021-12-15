@@ -42,6 +42,16 @@ PYBIND11_MODULE(ncompress, m)
     return out.str();
   });
 
+  // bytes input, io.BytesIO output
+  m.def("compress", [](const py::bytes &data, std::ostream &out) {
+    std::stringstream in(data);
+    ncompress::compress(in, out);
+  });
+  m.def("decompress", [](const py::bytes &data, std::ostream &out) {
+    std::stringstream in(data);
+    ncompress::decompress(in, out);
+  });
+
 #define STRING(s) #s
 #ifdef VERSION_INFO
   m.attr("__version__") = STRING(VERSION_INFO);
