@@ -44,3 +44,19 @@ jobs:
           pip install pybind11
           python setup.py clean --all
           python setup.py build
+
+      - name: Set up Clang
+        if: ${{ runner.os != 'macOS' }}
+        uses: egor-tensin/setup-clang@v1
+        with:
+          version: latest
+          platform: x64
+
+      - name: Detailed build with clang++
+        if: ${{ runner.os != 'macOS' }}
+        env:
+          CFLAGS: ${{ runner.os == 'Windows' && '/WX' || '-Werror' }}
+          CC: clang
+        run: |
+          python setup.py clean --all
+          python setup.py build
