@@ -16,6 +16,7 @@ else()
     "$<$<CONFIG:Debug>:-ggdb3;-Og>"
     "$<$<CONFIG:RelWithDebInfo>:-ggdb3;-O3>"
     "$<$<CONFIG:Release>:-O3>"
+    -fvisibility=hidden
     -Wall
     -Wextra
     -Wpedantic

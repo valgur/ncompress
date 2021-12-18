@@ -19,9 +19,8 @@ class build_ext_custom(build_ext):
             else:
                 ext.extra_compile_args = ["-O3", "-Wall", "-Wextra", "-Wpedantic"]
             if self.compiler.compiler_type == "unix":
-                # workaround for ‘pystream::streambuf’ declared with greater visibility than the type of its field
-                # ‘pystream::streambuf::py_read’ [-Werror=attributes]
                 ext.extra_compile_args += ["-fvisibility=hidden"]
+                ext.extra_link_args = ["-fvisibility=hidden"]
         super().build_extensions()
 
 
