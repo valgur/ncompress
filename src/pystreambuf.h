@@ -261,7 +261,7 @@ class streambuf : public std::basic_streambuf<char>
     }
     farthest_pptr = std::max(farthest_pptr, pptr());
     off_type n_written = farthest_pptr - pbase();
-    py::bytes chunk(pbase(), n_written);
+    py::bytes chunk(pbase(), (py::ssize_t)n_written);
     py_write(chunk);
     if (!traits_type::eq_int_type(c, traits_type::eof()))
     {
@@ -466,9 +466,9 @@ class streambuf : public std::basic_streambuf<char>
 
     // we are in wonderland
     if (which == std::ios_base::in)
-      gbump(buf_sought - buf_cur);
+      gbump((int)(buf_sought - buf_cur));
     else if (which == std::ios_base::out)
-      pbump(buf_sought - buf_cur);
+      pbump((int)(buf_sought - buf_cur));
 
     result = pos_of_buffer_end_in_py_file + (buf_sought - buf_end);
     return true;
