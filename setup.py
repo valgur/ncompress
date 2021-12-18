@@ -13,10 +13,9 @@ class build_ext_custom(build_ext):
     def build_extensions(self):
         for ext in self.extensions:
             if self.compiler.compiler_type == "msvc":
-                ext.extra_compile_args = ["/W4", "/O2"]
                 cflags = os.environ.get("CFLAGS")
                 if cflags:
-                    ext.extra_compile_args += list(cflags.split(" "))
+                    ext.extra_compile_args = list(cflags.split(" "))
             else:
                 ext.extra_compile_args = ["-O3", "-Wall", "-Wextra", "-Wpedantic"]
             if self.compiler.compiler_type == "unix":
