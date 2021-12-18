@@ -23,7 +23,6 @@ ext_modules = [
         sources=["src/ncompress.cpp", "src/python.cpp"],
         include_dirs=["include"],
         define_macros=[("VERSION_INFO", __version__)],
-        cxx_std=11,
     )
 ]
 
