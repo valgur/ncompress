@@ -212,7 +212,7 @@ compress(std::istream &in, std::ostream &out)
   while (in.good())
   {
     in.read((char *)inbuf, IBUFSIZ);
-    rsize = in.gcount();
+    rsize = (int)in.gcount();
     if (rsize <= 0)
       break;
 
@@ -347,13 +347,12 @@ compress(std::istream &in, std::ostream &out)
       output(outbuf, outbits, fcode.e.ent, n_bits);
 
       {
-        long fc = fcode.code;
+        long fc_tmp = fcode.code;
         fcode.e.ent = fcode.e.c;
-
         if (stcode)
         {
           codetab[hp] = (unsigned short)free_ent++;
-          htab[hp] = fc;
+          htab[hp] = fc_tmp;
         }
       }
 
@@ -424,7 +423,7 @@ decompress(std::istream &in, std::ostream &out)
   while (insize < 3 && in.good())
   {
     in.read((char *)(inbuf + insize), IBUFSIZ);
-    rsize = in.gcount();
+    rsize = (int)in.gcount();
     insize += rsize;
   }
 
@@ -486,7 +485,7 @@ decompress(std::istream &in, std::ostream &out)
       in.read((char *)(inbuf + insize), IBUFSIZ);
       if (in.bad())
         read_error();
-      rsize = in.gcount();
+      rsize = (int)in.gcount();
       insize += rsize;
     }
 
@@ -567,7 +566,7 @@ decompress(std::istream &in, std::ostream &out)
       {
         int i;
 
-        if (outpos + (i = (de_stack - stackp)) >= OBUFSIZ)
+        if (outpos + (i = (int)(de_stack - stackp)) >= OBUFSIZ)
         {
           do
           {
@@ -590,7 +589,7 @@ decompress(std::istream &in, std::ostream &out)
             }
             stackp += i;
           }
-          while ((i = (de_stack - stackp)) > 0);
+          while ((i = (int)(de_stack - stackp)) > 0);
         }
         else
         {
