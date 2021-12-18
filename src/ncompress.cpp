@@ -19,6 +19,7 @@
 #include <cstring>
 #include <istream>
 #include <ostream>
+#include <string>
 
 #ifndef IBUFSIZ
 #  define IBUFSIZ BUFSIZ /* Default input buffer size							*/
