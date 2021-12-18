@@ -1,0 +1,46 @@
+name: Build
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'assets/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'assets/**'
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        python-version: [ '3.6', '3.9', '3.10' ]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Update setuptools
+        run: python -m pip install -U pip setuptools
+
+      - name: Install
+        run: pip install .[test]
+
+      - name: Run tests
+        run: pytest test --color=yes -v
+
+      - name: Detailed build
+        env:
+          CFLAGS: ${{ runner.os == 'Windows' && '/WX' || '-Werror' }}
+        run: |
+          pip install pybind11
+          python setup.py clean --all
+          python setup.py build
