@@ -6,12 +6,14 @@ on:
       - 'LICENSE'
       - '.gitignore'
       - 'assets/**'
+      - '.github/workflows/publish.yml'
   pull_request:
     paths-ignore:
       - '**.md'
       - 'LICENSE'
       - '.gitignore'
       - 'assets/**'
+      - '.github/workflows/publish.yml'
 jobs:
   build:
     runs-on: ${{ matrix.os }}
