@@ -11,6 +11,7 @@
  *   Peter Jannesen, Network Communication Systems
  *                       (peter@ncs.nl)
  *   Mike Frysinger      (vapier@gmail.com)
+ *   Martin Valgur       (martin.valgur@gmail.com)
  */
 
 #pragma once
