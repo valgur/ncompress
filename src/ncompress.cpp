@@ -11,8 +11,7 @@
  *   Peter Jannesen, Network Communication Systems
  *                       (peter@ncs.nl)
  *   Mike Frysinger      (vapier@gmail.com)
- *   Martin Valgur       (martin.valgur@gmail.com)
- */
+ *   Martin Valgur       (martin.valgur@gmail.com) */
 
 #include "ncompress.h"
 
@@ -22,93 +21,93 @@
 #include <ostream>
 #include <string>
 
-#ifndef IBUFSIZ
-#  define IBUFSIZ BUFSIZ /* Default input buffer size							*/
-#endif
-#ifndef OBUFSIZ
-#  define OBUFSIZ BUFSIZ /* Default output buffer size							*/
-#endif
-
-/* Defines for third byte of header 					*/
-#define MAGIC_1  (char_type)'\037' /* First byte of compressed file				*/
-#define MAGIC_2  (char_type)'\235' /* Second byte of compressed file				*/
-#define BIT_MASK 0x1f /* Mask for 'number of compression bits'		*/
-/* Masks 0x20 and 0x40 are free.  				*/
-/* I think 0x20 should mean that there is		*/
-/* a fourth header byte (for expansion).    	*/
-#define BLOCK_MODE 0x80 /* Block compression if table is full and		*/
-/* compression rate is dropping flush tables	*/
-
-/* the next two codes should not be changed lightly, as they must not	*/
-/* lie within the contiguous general code space.						*/
-#define FIRST 257 /* first free entry 							*/
-#define CLEAR 256 /* table clear output code 						*/
-
-#define INIT_BITS 9 /* initial number of bits/code */
-
-#define HBITS  17 /* 50% occupancy */
-#define HSIZE  (1 << HBITS)
-#define HMASK  (HSIZE - 1)
-#define HPRIME 9941
-#define BITS   16
-
-#define CHECK_GAP 10000
-
-typedef long int code_int;
-typedef long int count_int;
-typedef long int cmp_code_int;
-typedef unsigned char char_type;
-
-#define MAXCODE(n) (1L << (n))
-
-#define output(b, o, c, n)             \
-  {                                    \
-    char_type *p = &(b)[(o) >> 3];     \
-    long i = ((long)(c)) << ((o)&0x7); \
-    p[0] |= (char_type)(i);            \
-    p[1] |= (char_type)(i >> 8);       \
-    p[2] |= (char_type)(i >> 16);      \
-    (o) += (n);                        \
-  }
-#define input(b, o, c, n, m)                       \
-  {                                                \
-    char_type *p = &(b)[(o) >> 3];                 \
-    (c) = ((((long)(p[0])) | ((long)(p[1]) << 8) | \
-               ((long)(p[2]) << 16)) >>            \
-              ((o)&0x7)) &                         \
-        (m);                                       \
-    (o) += (n);                                    \
-  }
-
-#define reset_n_bits_for_compressor(n_bits, stcode, free_ent, extcode, maxbits) \
-  {                                                                             \
-    n_bits = INIT_BITS;                                                         \
-    stcode = 1;                                                                 \
-    free_ent = FIRST;                                                           \
-    extcode = MAXCODE(n_bits);                                                  \
-    if (n_bits < maxbits)                                                       \
-      extcode++;                                                                \
-  }
-
-#define reset_n_bits_for_decompressor(n_bits, bitmask, maxbits, maxcode, maxmaxcode) \
-  {                                                                                  \
-    n_bits = INIT_BITS;                                                              \
-    bitmask = (1 << n_bits) - 1;                                                     \
-    if (n_bits == maxbits)                                                           \
-      maxcode = maxmaxcode;                                                          \
-    else                                                                             \
-      maxcode = MAXCODE(n_bits) - 1;                                                 \
-  }
-
-#define tab_prefixof(i)      codetab[i]
-#define tab_suffixof(i)      ((char_type *)(htab))[i]
-#define de_stack             ((char_type *)&(htab[HSIZE - 1]))
-#define clear_htab()         memset(htab, -1, sizeof(htab))
-#define clear_tab_prefixof() memset(codetab, 0, 256);
-
 namespace ncompress
 {
 
+#ifndef IBUFSIZ
+#  define IBUFSIZ BUFSIZ /* Default input buffer size */
+#endif
+#ifndef OBUFSIZ
+#  define OBUFSIZ BUFSIZ /* Default output buffer size */
+#endif
+
+using code_int = long;
+using count_int = long;
+using cmp_code_int = long;
+using char_type = unsigned char;
+using codetab_type = unsigned short;
+
+/* Defines for third byte of header */
+const char_type BIT_MASK = 0x1fU; /* Mask for 'number of compression bits' */
+/* Masks 0x20 and 0x40 are free. */
+/* I think 0x20 should mean that there is */
+/* a fourth header byte (for expansion). */
+const char_type BLOCK_MODE = 0x80U; /* Block compression if table is full and
+                                           compression rate is dropping flush tables */
+
+/* the next two codes should not be changed lightly, as they must not */
+/* lie within the contiguous general code space. */
+const code_int FIRST = 257; /* first free entry */
+const code_int CLEAR = 256; /* table clear output code */
+
+const int INIT_BITS = 9; /* initial number of bits/code */
+
+const int HBITS = 17; /* 50% occupancy */
+const int HSIZE = 1 << HBITS;
+const int HMASK = HSIZE - 1;
+const int BITS = 16;
+
+const long CHECK_GAP = 10000;
+
+constexpr code_int
+MAXCODE(int n)
+{
+  return 1L << n;
+}
+
+void
+output(char_type *buf, int &bits, code_int code, int n_bits)
+{
+  char_type *p = &buf[bits >> 3];
+  long i = static_cast<long>(code) << (bits & 0x7);
+  p[0] |= static_cast<char_type>(i);
+  p[1] |= static_cast<char_type>(i >> 8);
+  p[2] |= static_cast<char_type>(i >> 16);
+  bits += n_bits;
+}
+
+code_int
+input(char_type *buf, int &bits, int n_bits, int bitmask)
+{
+  char_type *p = &buf[bits >> 3];
+  long i = ((long)(p[0])) | ((long)(p[1]) << 8) | ((long)(p[2]) << 16);
+  code_int code = (i >> (bits & 0x7)) & bitmask;
+  bits += n_bits;
+  return code;
+}
+
+void
+reset_n_bits_for_compressor(
+    int &n_bits, int &stcode, code_int &free_ent, code_int &extcode, int maxbits)
+{
+  n_bits = INIT_BITS;
+  stcode = 1;
+  free_ent = FIRST;
+  extcode = MAXCODE(n_bits);
+  if (n_bits < maxbits)
+    extcode++;
+}
+
+void
+reset_n_bits_for_decompressor(
+    int &n_bits, int &bitmask, int maxbits, code_int &maxcode, code_int maxmaxcode)
+{
+  n_bits = INIT_BITS;
+  bitmask = (1 << n_bits) - 1;
+  maxcode = (n_bits == maxbits) ? maxmaxcode : MAXCODE(n_bits) - 1;
+}
+
+/* clang-format off */
 static const int primetab[256] = /* Special secudary hash table.		*/
     {
       1013, -1061, 1109, -1181, 1231, -1291, 1361, -1429,
@@ -144,6 +143,7 @@ static const int primetab[256] = /* Special secudary hash table.		*/
       18233, -18307, 18379, -18451, 18523, -18637, 18731, -18803,
       18919, -19031, 19121, -19211, 19273, -19381, 19429, -19477
     };
+/* clang-format on */
 
 void read_error();
 void write_error();
@@ -161,8 +161,7 @@ void write_error();
  * codes are re-sized at this point, and a special CLEAR code is generated
  * for the decompressor.  Late addition:  construct the table according to
  * file size for noticeable speed improvement on small files.  Please direct
- * questions about this implementation to ames!jaw.
- */
+ * questions about this implementation to ames!jaw. */
 void
 compress(std::istream &in, std::ostream &out)
 {
@@ -189,16 +188,18 @@ compress(std::istream &in, std::ostream &out)
     } e;
   } fcode;
 
-  int maxbits = BITS; /* user settable max # bits/code 				*/
+  int maxbits = BITS; /* user settable max # bits/code */
 
-  char_type inbuf[IBUFSIZ + 64]; /* Input buffer									*/
-  char_type outbuf[OBUFSIZ + 2048]; /* Output buffer								*/
+  char_type inbuf[IBUFSIZ + 64]; /* Input buffer */
+  char_type outbuf[OBUFSIZ + 2048]; /* Output buffer */
 
-  long bytes_in = 0; /* Total number of bytes from input				*/
-  long bytes_out = 0; /* Total number of bytes to output				*/
+  long bytes_in = 0; /* Total number of bytes from input */
+  long bytes_out = 0; /* Total number of bytes to output */
 
   count_int htab[HSIZE];
   unsigned short codetab[HSIZE];
+
+  auto clear_htab = [&]() { memset(htab, -1, sizeof(htab)); };
 
   reset_n_bits_for_compressor(n_bits, stcode, free_ent, extcode, maxbits);
 
@@ -233,7 +234,8 @@ compress(std::istream &in, std::ostream &out)
       {
         if (n_bits < maxbits)
         {
-          boff = outbits = (outbits - 1) + ((n_bits << 3) - ((outbits - boff - 1 + (n_bits << 3)) % (n_bits << 3)));
+          boff = outbits = (outbits - 1) +
+              ((n_bits << 3) - ((outbits - boff - 1 + (n_bits << 3)) % (n_bits << 3)));
           if (++n_bits < maxbits)
             extcode = MAXCODE(n_bits) + 1;
           else
@@ -270,7 +272,8 @@ compress(std::istream &in, std::ostream &out)
           ratio = 0;
           clear_htab();
           output(outbuf, outbits, CLEAR, n_bits);
-          boff = outbits = (outbits - 1) + ((n_bits << 3) - ((outbits - boff - 1 + (n_bits << 3)) % (n_bits << 3)));
+          boff = outbits = (outbits - 1) +
+              ((n_bits << 3) - ((outbits - boff - 1 + (n_bits << 3)) % (n_bits << 3)));
           reset_n_bits_for_compressor(n_bits, stcode, free_ent, extcode, maxbits);
         }
       }
@@ -389,8 +392,7 @@ compress(std::istream &in, std::ostream &out)
  * Decompress input stream to output stream. This routine adapts to the codes in the
  * file building the "string" table on-the-fly; requiring no table to
  * be stored in the compressed file.  The tables used herein are shared
- * with those of the compress() routine.  See the definitions above.
- */
+ * with those of the compress() routine.  See the definitions above. */
 void
 decompress(std::istream &in, std::ostream &out)
 {
@@ -411,15 +413,21 @@ decompress(std::istream &in, std::ostream &out)
   int rsize;
   int block_mode;
 
-  int maxbits = BITS; /* user settable max # bits/code 				*/
+  int maxbits = BITS; /* user settable max # bits/code */
 
-  char_type inbuf[IBUFSIZ + 64]; /* Input buffer									*/
-  char_type outbuf[OBUFSIZ + 2048]; /* Output buffer								*/
+  char_type inbuf[IBUFSIZ + 64]; /* Input buffer */
+  char_type outbuf[OBUFSIZ + 2048]; /* Output buffer */
 
-  long bytes_in = 0; /* Total number of bytes from input				*/
+  long bytes_in = 0; /* Total number of bytes from input */
 
   count_int htab[HSIZE];
   unsigned short codetab[HSIZE];
+
+  auto tab_prefixof = [&codetab](code_int i) -> codetab_type & { return codetab[i]; };
+  auto tab_suffixof = [&htab](
+                          code_int i) -> char_type & { return ((char_type *)htab)[i]; };
+  auto de_stack = [&htab]() { return (char_type *)&(htab[HSIZE-1]); };
+  auto clear_tab_prefixof = [&]() { memset(codetab, 0, 256); };
 
   while (insize < 3 && in.good())
   {
@@ -455,10 +463,10 @@ decompress(std::istream &in, std::ostream &out)
   outpos = 0;
   posbits = 3 << 3;
 
-  free_ent = ((block_mode) ? FIRST : 256);
+  free_ent = block_mode ? FIRST : 256;
 
   clear_tab_prefixof(); /* As above, initialize the first
-                   256 entries in the table. */
+                           256 entries in the table. */
 
   for (code = 255; code >= 0; --code)
     tab_suffixof(code) = (char_type)code;
@@ -490,13 +498,15 @@ decompress(std::istream &in, std::ostream &out)
       insize += rsize;
     }
 
-    inbits = ((rsize > 0) ? (insize - insize % n_bits) << 3 : (insize << 3) - (n_bits - 1));
+    inbits =
+        ((rsize > 0) ? (insize - insize % n_bits) << 3 : (insize << 3) - (n_bits - 1));
 
     while (inbits > posbits)
     {
       if (free_ent > maxcode)
       {
-        posbits = ((posbits - 1) + ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3)));
+        posbits = ((posbits - 1) +
+            ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3)));
 
         ++n_bits;
         if (n_bits == maxbits)
@@ -508,13 +518,14 @@ decompress(std::istream &in, std::ostream &out)
         goto resetbuf;
       }
 
-      input(inbuf, posbits, code, n_bits, bitmask);
+      code = input(inbuf, posbits, n_bits, bitmask);
 
       if (oldcode == -1)
       {
         if (code >= 256)
         {
-          throw std::invalid_argument("corrupt input - oldcode: -1, code: " + std::to_string((int)(code)));
+          throw std::invalid_argument(
+              "corrupt input - oldcode: -1, code: " + std::to_string((int)(code)));
         }
         outbuf[outpos++] = (char_type)(finchar = (int)(oldcode = code));
         continue;
@@ -524,15 +535,16 @@ decompress(std::istream &in, std::ostream &out)
       {
         clear_tab_prefixof();
         free_ent = FIRST - 1;
-        posbits = ((posbits - 1) + ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3)));
+        posbits = ((posbits - 1) +
+            ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3)));
         reset_n_bits_for_decompressor(n_bits, bitmask, maxbits, maxcode, maxmaxcode);
         goto resetbuf;
       }
 
       incode = code;
-      stackp = de_stack;
+      stackp = de_stack();
 
-      if (code >= free_ent) /* Special case for KwKwK string.	*/
+      if (code >= free_ent) /* Special case for KwKwK string. */
       {
         if (code > free_ent)
         {
@@ -545,7 +557,8 @@ decompress(std::istream &in, std::ostream &out)
 
           char err[200];
           snprintf(err, 200,
-              "corrupt input - insize: %d, posbits: %d, inbuf: %02X %02X %02X %02X %02X (%d)",
+              "corrupt input - insize: %d, posbits: %d, "
+              "inbuf: %02X %02X %02X %02X %02X (%d)",
               insize, posbits, p[-1], p[0], p[1], p[2], p[3], (posbits & 07));
           throw std::invalid_argument(err);
         }
@@ -567,7 +580,7 @@ decompress(std::istream &in, std::ostream &out)
       {
         int i;
 
-        if (outpos + (i = (int)(de_stack - stackp)) >= OBUFSIZ)
+        if (outpos + (i = (int)(de_stack() - stackp)) >= OBUFSIZ)
         {
           do
           {
@@ -590,7 +603,7 @@ decompress(std::istream &in, std::ostream &out)
             }
             stackp += i;
           }
-          while ((i = (int)(de_stack - stackp)) > 0);
+          while ((i = (int)(de_stack() - stackp)) > 0);
         }
         else
         {
@@ -606,7 +619,7 @@ decompress(std::istream &in, std::ostream &out)
         free_ent = code + 1;
       }
 
-      oldcode = incode; /* Remember previous code.	*/
+      oldcode = incode; /* Remember previous code. */
     }
 
     bytes_in += rsize;

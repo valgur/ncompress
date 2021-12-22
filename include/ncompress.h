@@ -37,4 +37,7 @@ void compress(std::istream &in, std::ostream &out);
  */
 void decompress(std::istream &in, std::ostream &out);
 
+static const unsigned char MAGIC_1 = 0x1fU; /* First byte of compressed file */
+static const unsigned char MAGIC_2 = 0x9dU; /* Second byte of compressed file */
+
 } // namespace ncompress
