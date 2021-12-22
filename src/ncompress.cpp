@@ -165,31 +165,6 @@ void write_error();
 void
 compress(std::istream &in, std::ostream &out)
 {
-  long hp;
-  int rpos;
-  long fc;
-  int outbits;
-  int rlop;
-  int rsize;
-  int stcode;
-  code_int free_ent;
-  int boff;
-  int n_bits;
-  int ratio = 0;
-  long checkpoint = CHECK_GAP;
-  code_int extcode;
-  union
-  {
-    long code = 0;
-    struct
-    {
-      char_type c;
-      unsigned short ent;
-    } e;
-  } fcode;
-
-  int maxbits = BITS; /* user settable max # bits/code */
-
   char_type inbuf[IBUFSIZ + 64]; /* Input buffer */
   char_type outbuf[OBUFSIZ + 2048]; /* Output buffer */
 
@@ -201,32 +176,48 @@ compress(std::istream &in, std::ostream &out)
 
   auto clear_htab = [&]() { memset(htab, -1, sizeof(htab)); };
 
+  int n_bits;
+  int stcode;
+  code_int free_ent;
+  code_int extcode;
+  int maxbits = BITS; /* user settable max # bits/code */
   reset_n_bits_for_compressor(n_bits, stcode, free_ent, extcode, maxbits);
+  int ratio = 0;
+  long checkpoint = CHECK_GAP;
+  union
+  {
+    long code = 0;
+    struct
+    {
+      char_type c;
+      unsigned short ent;
+    } e;
+  } fcode;
 
   memset(outbuf, 0, sizeof(outbuf));
   outbuf[0] = MAGIC_1;
   outbuf[1] = MAGIC_2;
-  outbuf[2] = (char)(maxbits | BLOCK_MODE);
-  boff = outbits = (3 << 3);
+  outbuf[2] = (char_type)(maxbits | BLOCK_MODE);
+  int outbits = 3 << 3;
+  int boff = outbits;
 
   clear_htab();
 
   while (in.good())
   {
     in.read((char *)inbuf, IBUFSIZ);
-    rsize = (int)in.gcount();
+    int rsize = (int)in.gcount();
     if (rsize <= 0)
       break;
 
+    int rpos = 0;
     if (bytes_in == 0)
     {
       fcode.e.ent = inbuf[0];
       rpos = 1;
     }
-    else
-      rpos = 0;
 
-    rlop = 0;
+    int rlop = 0;
 
     do
     {
@@ -293,9 +284,7 @@ compress(std::istream &in, std::ostream &out)
       }
 
       {
-        int i;
-
-        i = rsize - rlop;
+        int i = rsize - rlop;
 
         if ((code_int)i > extcode - free_ent)
           i = (int)(extcode - free_ent);
@@ -309,67 +298,70 @@ compress(std::istream &in, std::ostream &out)
         bytes_in += i;
       }
 
-      goto next;
-    hfound:
-      fcode.e.ent = codetab[hp];
-    next:
-      if (rpos >= rlop)
-        goto endlop;
-    next2:
-      fcode.e.c = inbuf[rpos++];
       {
-        long i;
-        long p;
-        fc = fcode.code;
-        hp = ((((long)(fcode.e.c)) << (HBITS - 8)) ^ (long)(fcode.e.ent));
+        long hp;
 
-        if ((i = htab[hp]) == fc)
-          goto hfound;
-        if (i == -1)
-          goto out;
-
-        p = primetab[fcode.e.c];
-      lookup:
-        hp = (hp + p) & HMASK;
-        if ((i = htab[hp]) == fc)
-          goto hfound;
-        if (i == -1)
-          goto out;
-        hp = (hp + p) & HMASK;
-        if ((i = htab[hp]) == fc)
-          goto hfound;
-        if (i == -1)
-          goto out;
-        hp = (hp + p) & HMASK;
-        if ((i = htab[hp]) == fc)
-          goto hfound;
-        if (i == -1)
-          goto out;
-        goto lookup;
-      }
-    out:;
-      output(outbuf, outbits, fcode.e.ent, n_bits);
-
-      {
-        long fc_tmp = fcode.code;
-        fcode.e.ent = fcode.e.c;
-        if (stcode)
+        goto next;
+      hfound:
+        fcode.e.ent = codetab[hp];
+      next:
+        if (rpos >= rlop)
+          goto endlop;
+      next2:
+        fcode.e.c = inbuf[rpos++];
         {
-          codetab[hp] = (unsigned short)free_ent++;
-          htab[hp] = fc_tmp;
+          long fc = fcode.code;
+          hp = (((long)(fcode.e.c)) << (HBITS - 8)) ^ (long)(fcode.e.ent);
+
+          long i = htab[hp];
+          if (i == fc)
+            goto hfound;
+          if (i == -1)
+            goto out;
+
+          long p = primetab[fcode.e.c];
+        lookup:
+          hp = (hp + p) & HMASK;
+          if ((i = htab[hp]) == fc)
+            goto hfound;
+          if (i == -1)
+            goto out;
+          hp = (hp + p) & HMASK;
+          if ((i = htab[hp]) == fc)
+            goto hfound;
+          if (i == -1)
+            goto out;
+          hp = (hp + p) & HMASK;
+          if ((i = htab[hp]) == fc)
+            goto hfound;
+          if (i == -1)
+            goto out;
+          goto lookup;
         }
-      }
+      out:;
+        output(outbuf, outbits, fcode.e.ent, n_bits);
 
-      goto next;
+        {
+          long fc = fcode.code;
+          fcode.e.ent = fcode.e.c;
+          if (stcode)
+          {
+            codetab[hp] = (unsigned short)free_ent++;
+            htab[hp] = fc;
+          }
+        }
 
-    endlop:
-      if (fcode.e.ent >= FIRST && rpos < rsize)
-        goto next2;
+        goto next;
 
-      if (rpos > rlop)
-      {
-        bytes_in += rpos - rlop;
-        rlop = rpos;
+      endlop:
+        if (fcode.e.ent >= FIRST && rpos < rsize)
+          goto next2;
+
+        if (rpos > rlop)
+        {
+          bytes_in += rpos - rlop;
+          rlop = rpos;
+        }
       }
     }
     while (rlop < rsize);
@@ -396,25 +388,6 @@ compress(std::istream &in, std::ostream &out)
 void
 decompress(std::istream &in, std::ostream &out)
 {
-  char_type *stackp;
-  code_int code;
-  int finchar;
-  code_int oldcode;
-  code_int incode;
-  int inbits;
-  int posbits;
-  int outpos;
-  int insize = 0;
-  int bitmask;
-  code_int free_ent;
-  code_int maxcode;
-  code_int maxmaxcode;
-  int n_bits;
-  int rsize;
-  int block_mode;
-
-  int maxbits = BITS; /* user settable max # bits/code */
-
   char_type inbuf[IBUFSIZ + 64]; /* Input buffer */
   char_type outbuf[OBUFSIZ + 2048]; /* Output buffer */
 
@@ -426,16 +399,17 @@ decompress(std::istream &in, std::ostream &out)
   auto tab_prefixof = [&codetab](code_int i) -> codetab_type & { return codetab[i]; };
   auto tab_suffixof = [&htab](
                           code_int i) -> char_type & { return ((char_type *)htab)[i]; };
-  auto de_stack = [&htab]() { return (char_type *)&(htab[HSIZE-1]); };
+  auto de_stack = [&htab]() { return (char_type *)&(htab[HSIZE - 1]); };
   auto clear_tab_prefixof = [&]() { memset(codetab, 0, 256); };
 
+  int insize = 0;
+  int rsize;
   while (insize < 3 && in.good())
   {
     in.read((char *)(inbuf + insize), IBUFSIZ);
     rsize = (int)in.gcount();
     insize += rsize;
   }
-
   if (insize < 3 || inbuf[0] != MAGIC_1 || inbuf[1] != MAGIC_2)
   {
     if (in.bad())
@@ -444,45 +418,42 @@ decompress(std::istream &in, std::ostream &out)
       throw std::invalid_argument("input stream is empty");
     throw std::invalid_argument("not in LZW-compressed format");
   }
+  bytes_in = insize;
 
-  maxbits = inbuf[2] & BIT_MASK;
-  block_mode = inbuf[2] & BLOCK_MODE;
-
+  int maxbits = inbuf[2] & BIT_MASK;
+  int block_mode = inbuf[2] & BLOCK_MODE;
   if (maxbits > BITS)
   {
     throw std::invalid_argument("compressed with " + std::to_string(maxbits) +
         " bits, can only handle " + std::to_string(BITS) + " bits");
   }
 
-  maxmaxcode = MAXCODE(maxbits);
-
-  bytes_in = insize;
+  int n_bits;
+  int bitmask;
+  code_int maxcode;
+  code_int maxmaxcode = MAXCODE(maxbits);
   reset_n_bits_for_decompressor(n_bits, bitmask, maxbits, maxcode, maxmaxcode);
-  oldcode = -1;
-  finchar = 0;
-  outpos = 0;
-  posbits = 3 << 3;
 
-  free_ent = block_mode ? FIRST : 256;
+  code_int oldcode = -1;
+  int finchar = 0;
+  int outpos = 0;
+  int posbits = 3 << 3;
+  code_int free_ent = block_mode ? FIRST : 256;
 
   clear_tab_prefixof(); /* As above, initialize the first
                            256 entries in the table. */
 
-  for (code = 255; code >= 0; --code)
+  for (code_int code = 255; code >= 0; --code)
     tab_suffixof(code) = (char_type)code;
 
   do
   {
   resetbuf:;
     {
-      int i;
-      int e;
-      int o;
+      int o = posbits >> 3;
+      int e = (o <= insize) ? insize - o : 0;
 
-      o = posbits >> 3;
-      e = o <= insize ? insize - o : 0;
-
-      for (i = 0; i < e; ++i)
+      for (int i = 0; i < e; ++i)
         inbuf[i] = inbuf[i + o];
 
       insize = e;
@@ -498,15 +469,15 @@ decompress(std::istream &in, std::ostream &out)
       insize += rsize;
     }
 
-    inbits =
-        ((rsize > 0) ? (insize - insize % n_bits) << 3 : (insize << 3) - (n_bits - 1));
+    int inbits =
+        (rsize > 0) ? (insize - insize % n_bits) << 3 : (insize << 3) - (n_bits - 1);
 
     while (inbits > posbits)
     {
       if (free_ent > maxcode)
       {
-        posbits = ((posbits - 1) +
-            ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3)));
+        posbits = (posbits - 1) +
+            ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3));
 
         ++n_bits;
         if (n_bits == maxbits)
@@ -518,7 +489,7 @@ decompress(std::istream &in, std::ostream &out)
         goto resetbuf;
       }
 
-      code = input(inbuf, posbits, n_bits, bitmask);
+      code_int code = input(inbuf, posbits, n_bits, bitmask);
 
       if (oldcode == -1)
       {
@@ -541,8 +512,8 @@ decompress(std::istream &in, std::ostream &out)
         goto resetbuf;
       }
 
-      incode = code;
-      stackp = de_stack();
+      code_int incode = code;
+      char_type *stackp = de_stack();
 
       if (code >= free_ent) /* Special case for KwKwK string. */
       {
@@ -578,9 +549,8 @@ decompress(std::istream &in, std::ostream &out)
       /* And put them out in forward order */
 
       {
-        int i;
-
-        if (outpos + (i = (int)(de_stack() - stackp)) >= OBUFSIZ)
+        int i = (int)(de_stack() - stackp);
+        if (outpos + i >= OBUFSIZ)
         {
           do
           {
