@@ -225,12 +225,11 @@ compress(std::istream &in, std::ostream &out)
       {
         if (n_bits < maxbits)
         {
-          boff = outbits = (outbits - 1) +
+          outbits = (outbits - 1) +
               ((n_bits << 3) - ((outbits - boff - 1 + (n_bits << 3)) % (n_bits << 3)));
-          if (++n_bits < maxbits)
-            extcode = MAXCODE(n_bits) + 1;
-          else
-            extcode = MAXCODE(n_bits);
+          boff = outbits;
+          ++n_bits;
+          extcode = (n_bits < maxbits) ? MAXCODE(n_bits) + 1 : MAXCODE(n_bits);
         }
         else
         {
@@ -263,8 +262,9 @@ compress(std::istream &in, std::ostream &out)
           ratio = 0;
           clear_htab();
           output(outbuf, outbits, CLEAR, n_bits);
-          boff = outbits = (outbits - 1) +
+          outbits = (outbits - 1) +
               ((n_bits << 3) - ((outbits - boff - 1 + (n_bits << 3)) % (n_bits << 3)));
+          boff = outbits;
           reset_n_bits_for_compressor(n_bits, stcode, free_ent, extcode, maxbits);
         }
       }
@@ -322,17 +322,20 @@ compress(std::istream &in, std::ostream &out)
           long p = primetab[fcode.e.c];
         lookup:
           hp = (hp + p) & HMASK;
-          if ((i = htab[hp]) == fc)
+          i = htab[hp];
+          if (i == fc)
             goto hfound;
           if (i == -1)
             goto out;
           hp = (hp + p) & HMASK;
-          if ((i = htab[hp]) == fc)
+          i = htab[hp];
+          if (i == fc)
             goto hfound;
           if (i == -1)
             goto out;
           hp = (hp + p) & HMASK;
-          if ((i = htab[hp]) == fc)
+          i = htab[hp];
+          if (i == fc)
             goto hfound;
           if (i == -1)
             goto out;
@@ -420,8 +423,8 @@ decompress(std::istream &in, std::ostream &out)
   }
   bytes_in = insize;
 
-  int maxbits = inbuf[2] & BIT_MASK;
-  int block_mode = inbuf[2] & BLOCK_MODE;
+  const int maxbits = inbuf[2] & BIT_MASK;
+  const int block_mode = inbuf[2] & BLOCK_MODE;
   if (maxbits > BITS)
   {
     throw std::invalid_argument("compressed with " + std::to_string(maxbits) +
@@ -431,7 +434,7 @@ decompress(std::istream &in, std::ostream &out)
   int n_bits;
   int bitmask;
   code_int maxcode;
-  code_int maxmaxcode = MAXCODE(maxbits);
+  const code_int maxmaxcode = MAXCODE(maxbits);
   reset_n_bits_for_decompressor(n_bits, bitmask, maxbits, maxcode, maxmaxcode);
 
   code_int oldcode = -1;
@@ -480,11 +483,7 @@ decompress(std::istream &in, std::ostream &out)
             ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3));
 
         ++n_bits;
-        if (n_bits == maxbits)
-          maxcode = maxmaxcode;
-        else
-          maxcode = MAXCODE(n_bits) - 1;
-
+        maxcode = (n_bits == maxbits) ? maxmaxcode : MAXCODE(n_bits) - 1;
         bitmask = (1 << n_bits) - 1;
         goto resetbuf;
       }
@@ -498,7 +497,9 @@ decompress(std::istream &in, std::ostream &out)
           throw std::invalid_argument(
               "corrupt input - oldcode: -1, code: " + std::to_string((int)(code)));
         }
-        outbuf[outpos++] = (char_type)(finchar = (int)(oldcode = code));
+        oldcode = code;
+        finchar = (int)(code);
+        outbuf[outpos++] = (char_type)(code);
         continue;
       }
 
@@ -506,8 +507,8 @@ decompress(std::istream &in, std::ostream &out)
       {
         clear_tab_prefixof();
         free_ent = FIRST - 1;
-        posbits = ((posbits - 1) +
-            ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3)));
+        posbits = (posbits - 1) +
+            ((n_bits << 3) - (posbits - 1 + (n_bits << 3)) % (n_bits << 3));
         reset_n_bits_for_decompressor(n_bits, bitmask, maxbits, maxcode, maxmaxcode);
         goto resetbuf;
       }
@@ -544,7 +545,8 @@ decompress(std::istream &in, std::ostream &out)
         code = tab_prefixof(code);
       }
 
-      *--stackp = (char_type)(finchar = tab_suffixof(code));
+      finchar = tab_suffixof(code);
+      *--stackp = (char_type)(finchar);
 
       /* And put them out in forward order */
 
@@ -572,8 +574,9 @@ decompress(std::istream &in, std::ostream &out)
               outpos = 0;
             }
             stackp += i;
+            i = (int)(de_stack() - stackp);
           }
-          while ((i = (int)(de_stack() - stackp)) > 0);
+          while (i > 0);
         }
         else
         {
@@ -582,7 +585,8 @@ decompress(std::istream &in, std::ostream &out)
         }
       }
 
-      if ((code = free_ent) < maxmaxcode) /* Generate the new entry. */
+      code = free_ent;
+      if (code < maxmaxcode) /* Generate the new entry. */
       {
         tab_prefixof(code) = (unsigned short)oldcode;
         tab_suffixof(code) = (char_type)finchar;
