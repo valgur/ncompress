@@ -1,4 +1,4 @@
-# ncompress [![PyPI](https://img.shields.io/pypi/v/ncompress)](https://pypi.org/project/ncompress/) [![Build](https://github.com/valgur/velodyne_decoder/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/valgur/velodyne_decoder/actions/workflows/build.yml)
+# ncompress [![PyPI](https://img.shields.io/pypi/v/ncompress)](https://pypi.org/project/ncompress/) [![Build](https://github.com/valgur/velodyne_decoder/actions/workflows/build.yml/badge.svg?event=push)](https://github.com/valgur/velodyne_decoder/actions/workflows/build.yml) [![PyPI - Downloads](https://img.shields.io/pypi/dm/ncompress)](https://pypistats.org/packages/ncompress)
 
 LZW compression and decompression in Python and C++.
 
