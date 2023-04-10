@@ -1,61 +1,108 @@
+#include <istream>
 #include <sstream>
 #include <string>
 
-#include <pybind11/pybind11.h>
+#include <nanobind/nanobind.h>
+
+#include <bytesobject.h>
+#include <pyerrors.h>
 
 #include "ncompress.h"
 #include "pystreambuf.h"
 
-namespace py = pybind11;
+namespace nb = nanobind;
+using pystream::streambuf;
 
-PYBIND11_MODULE(ncompress, m)
+// Unlike pybind11, nanobind doesn't provide a bytes <-> std::string type caster.
+namespace nanobind::detail
 {
-  m.doc() = "";
+template <> struct type_caster<std::string>
+{
+  NB_TYPE_CASTER(std::string, const_name("bytes"));
 
+  bool from_python(handle src, uint8_t, cleanup_list *) noexcept
+  {
+    if (!PyBytes_Check(src.ptr()))
+    {
+      PyErr_Clear();
+      return false;
+    }
+    char *str;
+    Py_ssize_t size;
+    PyBytes_AsStringAndSize(src.ptr(), &str, &size);
+    if (!str)
+    {
+      PyErr_Clear();
+      return false;
+    }
+    value = std::string(str, (size_t)size);
+    return true;
+  }
+
+  static handle from_cpp(const std::string &value, rv_policy, cleanup_list *) noexcept
+  {
+    return PyBytes_FromStringAndSize(value.c_str(), value.size());
+  }
+};
+} // namespace nanobind::detail
+
+NB_MODULE(ncompress_core, m)
+{
   // io.BytesIO input-output
-  m.def("compress", &ncompress::compress);
-  m.def("decompress", &ncompress::decompress);
-
-  // bytes input-output
-  m.def("compress", [](const py::bytes &data) -> py::bytes {
-    std::stringstream in(data);
-    std::stringstream out;
-    ncompress::compress(in, out);
-    return out.str();
-  });
-  m.def("decompress", [](const py::bytes &data) -> py::bytes {
-    std::stringstream in(data);
-    std::stringstream out;
-    ncompress::decompress(in, out);
-    return out.str();
-  });
-
-  // io.BytesIO input, bytes output
-  m.def("compress", [](std::istream &in) -> py::bytes {
-    std::stringstream out;
-    ncompress::compress(in, out);
-    return out.str();
-  });
-  m.def("decompress", [](std::istream &in) -> py::bytes {
-    std::stringstream out;
-    ncompress::decompress(in, out);
-    return out.str();
-  });
+  m.def("compress", ncompress::compress, nb::arg("in_stream"), nb::arg("out_stream"));
+  m.def("decompress", ncompress::decompress, nb::arg("in_stream"), nb::arg("out_stream"));
 
   // bytes input, io.BytesIO output
-  m.def("compress", [](const py::bytes &data, std::ostream &out) {
-    std::stringstream in(data);
-    ncompress::compress(in, out);
-  });
-  m.def("decompress", [](const py::bytes &data, std::ostream &out) {
-    std::stringstream in(data);
-    ncompress::decompress(in, out);
-  });
+  m.def(
+      "compress",
+      [](const std::string &data, std::ostream &out) {
+        std::istringstream in(data);
+        ncompress::compress(in, out);
+      },
+      nb::arg("in_bytes"), nb::arg("out_stream"));
+  m.def(
+      "decompress",
+      [](const std::string &data, std::ostream &out) {
+        std::istringstream in(data);
+        ncompress::decompress(in, out);
+      },
+      nb::arg("in_bytes"), nb::arg("out_stream"));
 
-#define STRING(s) #s
-#ifdef VERSION_INFO
-  m.attr("__version__") = STRING(VERSION_INFO);
-#else
-  m.attr("__version__") = "dev";
-#endif
+  // io.BytesIO input, bytes output
+  m.def(
+      "compress",
+      [](std::istream &in) -> std::string {
+        std::ostringstream out;
+        ncompress::compress(in, out);
+        return out.str();
+      },
+      nb::arg("in_stream"));
+  m.def(
+      "decompress",
+      [](std::istream &in) -> std::string {
+        std::ostringstream out;
+        ncompress::decompress(in, out);
+        return out.str();
+      },
+      nb::arg("in_stream"));
+
+  // bytes input-output
+  m.def(
+      "compress",
+      [](const std::string &data) -> std::string {
+        std::istringstream in(data);
+        std::ostringstream out;
+        ncompress::compress(in, out);
+        return out.str();
+      },
+      nb::arg("in_bytes"));
+  m.def(
+      "decompress",
+      [](const std::string &data) -> std::string {
+        std::istringstream in(data);
+        std::ostringstream out;
+        ncompress::decompress(in, out);
+        return out.str();
+      },
+      nb::arg("in_bytes"));
 }

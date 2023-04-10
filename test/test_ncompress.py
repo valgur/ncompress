@@ -83,11 +83,23 @@ def test_corrupted_input(sample_compressed):
                 "corrupt input - " in str(ex.value))
 
 
-def test_str(sample_data, sample_compressed):
+def test_invalid_input():
     with pytest.raises(TypeError):
-        compress(sample_data.decode("latin1", errors="replace"))
+        compress("abc")
     with pytest.raises(TypeError):
-        decompress(sample_compressed.decode("latin1", errors="replace"))
+        decompress("abc")
+    with pytest.raises(TypeError):
+        compress()
+    with pytest.raises(TypeError):
+        decompress()
+    with pytest.raises(TypeError):
+        compress(None)
+    with pytest.raises(TypeError):
+        decompress(None)
+    with pytest.raises(TypeError):
+        compress(0)
+    with pytest.raises(TypeError):
+        decompress(0)
 
 
 def test_closed_input(sample_data, sample_compressed):
