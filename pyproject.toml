@@ -11,7 +11,17 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-# Disable building PyPy wheels on all platforms
-build-skip = "pp*"
+build = "*"
+# Disable building of PyPy wheels on all platforms
+skip = "pp*"
 test-requires = "pytest"
 test-command = "pytest {project}/test --color=yes -v"
+
+# nanobind does not support 32-bit architectures
+# static_assert(sizeof(nb_inst) == sizeof(PyObject) + sizeof(void *)); fails
+[tool.cibuildwheel.linux]
+archs = ["auto64"]
+[tool.cibuildwheel.macos]
+archs = ["auto64"]
+[tool.cibuildwheel.windows]
+archs = ["auto64"]

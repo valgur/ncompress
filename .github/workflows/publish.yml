@@ -51,8 +51,8 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_ARCHS_LINUX: x86_64 i686 aarch64 ppc64le
-          CIBW_ARCHS_WINDOWS: AMD64 x86 ARM64
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_ARCHS_WINDOWS: AMD64 ARM64
           CIBW_ARCHS_MACOS: x86_64 arm64 universal2
 
       - name: Inspect
