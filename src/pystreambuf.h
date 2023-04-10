@@ -234,7 +234,7 @@ class streambuf : public std::basic_streambuf<char>
     }
     read_buffer = nb::cast<nb::bytes>(py_read(buffer_size));
     char *read_buffer_data;
-    ssize_t py_n_read;
+    Py_ssize_t py_n_read;
     if (PyBytes_AsStringAndSize(read_buffer.ptr(), &read_buffer_data, &py_n_read) == -1)
     {
       setg(nullptr, nullptr, nullptr);
@@ -259,7 +259,7 @@ class streambuf : public std::basic_streambuf<char>
     }
     farthest_pptr = std::max(farthest_pptr, pptr());
     off_type n_written = farthest_pptr - pbase();
-    nb::bytes chunk(pbase(), (ssize_t)n_written);
+    nb::bytes chunk(pbase(), (size_t)n_written);
     py_write(chunk);
     if (!traits_type::eq_int_type(c, traits_type::eof()))
     {
