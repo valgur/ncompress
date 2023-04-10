@@ -256,3 +256,7 @@ cython_debug/
 
 .idea/
 .vscode/
+
+wheelhouse/
+_skbuild/
+tmp/
