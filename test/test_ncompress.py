@@ -61,10 +61,10 @@ def test_empty_input(sample_data):
     assert decompress(compress(b"")) == b""
     with pytest.raises(ValueError):
         decompress(b"")
-    with pytest.raises(TypeError):
-        compress()
-    with pytest.raises(TypeError):
-        decompress()
+
+    assert decompress(BytesIO(compress(b""))) == b""
+    with pytest.raises(ValueError):
+        decompress(BytesIO(b""))
 
 
 def test_corrupted_input(sample_compressed):
@@ -83,23 +83,14 @@ def test_corrupted_input(sample_compressed):
                 "corrupt input - " in str(ex.value))
 
 
-def test_invalid_input():
+@pytest.mark.parametrize("args",
+                         [["abc"], [0], [None], []],
+                         ids=["str", "int", "None", "empty"])
+def test_invalid_input(args):
     with pytest.raises(TypeError):
-        compress("abc")
+        compress(*args)
     with pytest.raises(TypeError):
-        decompress("abc")
-    with pytest.raises(TypeError):
-        compress()
-    with pytest.raises(TypeError):
-        decompress()
-    with pytest.raises(TypeError):
-        compress(None)
-    with pytest.raises(TypeError):
-        decompress(None)
-    with pytest.raises(TypeError):
-        compress(0)
-    with pytest.raises(TypeError):
-        decompress(0)
+        decompress(*args)
 
 
 def test_closed_input(sample_data, sample_compressed):
