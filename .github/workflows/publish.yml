@@ -26,12 +26,24 @@ jobs:
           path: dist/*.tar.gz
 
   build_wheels:
-    name: Wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.platform[0] }} - ${{ matrix.platform[2] }}
+    runs-on: ${{ matrix.platform[1] }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        platform:
+          # 32-bit architectures are not supported by nanobind
+          - [Linux, ubuntu-latest, x86_64]
+          # - [Linux, ubuntu-latest, i686]
+          - [Linux, ubuntu-latest, aarch64]
+          - [Linux, ubuntu-latest, ppc64le]
+          - [Linux, ubuntu-latest, s390x]
+          - [Windows, windows-latest, AMD64]
+          # - [Windows, windows-latest, x86]
+          - [Windows, windows-latest, ARM64]
+          - [MacOS, macos-latest, x86_64]
+          - [MacOS, macos-latest, arm64]
+          - [MacOS, macos-latest, universal2]
     steps:
       - uses: actions/checkout@v3
 
@@ -51,9 +63,9 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_ARCHS_LINUX: x86_64 aarch64
-          CIBW_ARCHS_WINDOWS: AMD64 ARM64
-          CIBW_ARCHS_MACOS: x86_64 arm64 universal2
+          CIBW_ARCHS: ${{ matrix.platform[2] }}
+          # Needed for C++17 support on macOS
+          MACOSX_DEPLOYMENT_TARGET: 10.14
 
       - name: Inspect
         run: ls wheelhouse/
