@@ -16,12 +16,8 @@ build = "*"
 skip = "pp*"
 test-requires = "pytest"
 test-command = "pytest {project}/test --color=yes -v"
+build-verbosity = 1
 
 # nanobind does not support 32-bit architectures
 # static_assert(sizeof(nb_inst) == sizeof(PyObject) + sizeof(void *)); fails
-[tool.cibuildwheel.linux]
-archs = ["auto64"]
-[tool.cibuildwheel.macos]
-archs = ["auto64"]
-[tool.cibuildwheel.windows]
-archs = ["auto64"]
+archs = "auto64"
