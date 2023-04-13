@@ -6,7 +6,7 @@ Ported with minimal changes from the [(N)compress](https://github.com/vapier/nco
 
 ## Installation
 
-Wheels are available for Python 3.6+ and all operating systems on PyPI.
+Wheels are available for Python 3.8+ and all operating systems on PyPI.
 
 ```bash
 pip install ncompress
@@ -21,7 +21,7 @@ Functions `compress()` and `decompress()` are available with the following input
 * `BytesIO`, `BytesIO` → `None`
 * `bytes`, `BytesIO` → `None`
 
-The `BytesIO`-based functions are slightly (about 15%) faster.
+The `BytesIO`-based functions are slightly (about 15%) faster due to avoiding a copy of the contents on `bytes`⇄`std::string` conversion.
 
 ## Authors
 
