@@ -1,3 +1,30 @@
+[project]
+name = "ncompress"
+version = "1.0.1"
+description = "LZW compression and decompression"
+readme = "README.md"
+authors = [{name = "Martin Valgur", email = "martin.valgur@gmail.com"}]
+urls."Homepage" = "https://github.com/valgur/ncompress"
+urls."Bug Reports" = "https://github.com/valgur/ncompress/issues"
+urls."Source" = "https://github.com/valgur/ncompress"
+license = {file = "LICENSE"}
+keywords = [
+    "LZW",
+    "compression",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: The Unlicense (Unlicense)",
+]
+requires-python = ">= 3.8"
+dependencies = []
+optional-dependencies.tests = ["pytest"]
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+
 [build-system]
 requires = [
     "setuptools>=42",
@@ -7,7 +34,6 @@ requires = [
     "cmake>=3.18",
     "ninja"
 ]
-
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
@@ -17,7 +43,6 @@ skip = "pp*"
 test-requires = "pytest"
 test-command = "pytest {project}/test --color=yes -v"
 build-verbosity = 1
-
 # nanobind does not support 32-bit architectures
 # static_assert(sizeof(nb_inst) == sizeof(PyObject) + sizeof(void *)); fails
 archs = "auto64"
