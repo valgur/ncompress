@@ -22,28 +22,17 @@ else()
   )
 endif()
 
-set(BUILD_PYTHON TRUE CACHE BOOL "Whether to build a Python module or a general shared library")
-if(BUILD_PYTHON)
+if(SKBUILD)
   set(CMAKE_CXX_STANDARD 17)
 
-  # Create CMake targets for all Python components needed by nanobind
-  if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.26 AND Python_INTERPRETER_ID STREQUAL "Python")
-    find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module Development.SABIModule)
-  else()
-    find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module)
-  endif()
-
-  # Determine the nanobind CMake include path and register it
-  execute_process(
-    COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
-    OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE NB_DIR)
-  list(APPEND CMAKE_PREFIX_PATH "${NB_DIR}")
+  # Try to import all Python components potentially needed by nanobind
+  find_package(Python 3.8
+    REQUIRED COMPONENTS Interpreter Development.Module
+    OPTIONAL_COMPONENTS Development.SABIModule)
 
   find_package(nanobind CONFIG REQUIRED)
 
-  if(DEFINED VERSION_INFO)
-    add_compile_definitions(VERSION_INFO=${VERSION_INFO})
-  endif()
+  add_compile_definitions(VERSION_INFO=${SKBUILD_PROJECT_VERSION})
 
   nanobind_add_module(
     ${PROJECT_NAME}_core
@@ -67,8 +56,7 @@ if(BUILD_PYTHON)
 
   target_include_directories(${PROJECT_NAME}_core PUBLIC include)
 
-  # Install directive for scikit-build
-  install(TARGETS ${PROJECT_NAME}_core LIBRARY DESTINATION .)
+  install(TARGETS ${PROJECT_NAME}_core LIBRARY DESTINATION ${SKBUILD_PROJECT_NAME})
 else()
   set(CMAKE_CXX_STANDARD 11)
 
@@ -79,5 +67,4 @@ else()
   install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
 endif()
