@@ -35,5 +35,5 @@ All modifications and additions are released under the [Unlicense](LICENSE).
 
 The base (N)compress code has been released into the public domain.
 
-The `BytesIO` wrapper in [pystreambuf.h](src/pystreambuf.h) has been adapted from the [cctbx](https://github.com/cctbx/cctbx_project) project.
-See the license in the linked file for details.
+The `BytesIO` wrapper in [pystreambuf.h](src/pystreambuf.h) has been adapted from the [cctbx](https://github.com/cctbx/cctbx_project) project and is licensed under the Lawrence Berkeley National Labs BSD variant license.
+See the linked file for details.

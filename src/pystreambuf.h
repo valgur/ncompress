@@ -2,7 +2,9 @@
 // and https://github.com/CadQuery/OCP/blob/master/pystreambuf.h
 // which derive from
 // https://github.com/cctbx/cctbx_project/blob/master/boost_adaptbx/python_streambuf.h
-// and adapted to nanobind.
+// and has been adapted to nanobind here.
+//
+// SPDX-License-Identifier: BSD-3-Clause-LBNL
 //
 // *** License agreement ***
 //
