@@ -39,14 +39,6 @@ jobs:
       - name: Run tests
         run: pytest test --color=yes -v
 
-      - name: Detailed build
-        env:
-          CFLAGS: ${{ runner.os == 'Windows' && '/WX' || '-Werror' }}
-        run: |
-          pip install -U setuptools wheel scikit-build cmake nanobind ninja
-          python setup.py clean --all
-          python setup.py build
-
       - name: Set up Clang
         if: ${{ runner.os != 'macOS' }}
         uses: egor-tensin/setup-clang@v1
@@ -59,6 +51,4 @@ jobs:
         env:
           CFLAGS: ${{ runner.os == 'Windows' && '/WX' || '-Werror' }}
           CC: clang
-        run: |
-          python setup.py clean --all
-          python setup.py build
+        run: pip install .[tests] --verbose
