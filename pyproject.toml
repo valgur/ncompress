@@ -1,6 +1,6 @@
 [project]
 name = "ncompress"
-version = "1.0.1"
+version = "1.0.2"
 description = "LZW compression and decompression"
 readme = "README.md"
 authors = [{name = "Martin Valgur", email = "martin.valgur@gmail.com"}]
