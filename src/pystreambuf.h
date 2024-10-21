@@ -1,5 +1,5 @@
 // Based on https://github.com/cctbx/cctbx_project/blob/master/boost_adaptbx/python_streambuf.h
-// which has been adapted to nanobind here.
+// which has been adapted to nanobind here (by Martin Valgur, released under Unlicense).
 //
 // SPDX-License-Identifier: BSD-3-Clause-LBNL
 //
